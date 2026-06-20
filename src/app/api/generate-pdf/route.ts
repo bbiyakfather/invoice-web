@@ -6,7 +6,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createElement } from 'react'
 import ReactPDF from '@react-pdf/renderer'
-import { InvoicePDFDocument } from '@/components/pdf/InvoiceTemplate'
+import { InvoicePDFDocument } from '@/components/pdf/invoice-template'
 import type { Invoice } from '@/types/invoice'
 import { ERROR_MESSAGES, PDF_CONFIG } from '@/lib/constants'
 import { sanitizeFilename } from '@/lib/format'
