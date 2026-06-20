@@ -3,7 +3,7 @@
  */
 
 import { LogoutButton } from './logout-button'
-import { ThemeToggle } from '@/components/theme-toggle'
+import { ThemeToggle } from '@/components/layout/theme-toggle'
 import { FileText } from 'lucide-react'
 
 /**
