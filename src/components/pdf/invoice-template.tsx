@@ -13,6 +13,7 @@ import {
 } from '@react-pdf/renderer'
 import type { Invoice } from '@/types/invoice'
 import { formatDate, formatCurrency } from '@/lib/format'
+import { COMPANY_INFO } from '@/lib/constants'
 
 // 한글 폰트 등록 (Google Fonts CDN 사용)
 Font.register({
@@ -52,6 +53,51 @@ const styles = StyleSheet.create({
   value: {
     flex: 1,
     color: '#000',
+  },
+  // 메타(견적서번호/발행일/유효기간) 한 줄
+  metaRow: {
+    flexDirection: 'row',
+    marginBottom: 14,
+    fontSize: 10,
+    color: '#333',
+  },
+  metaItem: {
+    marginRight: 24,
+  },
+  metaLabel: {
+    fontWeight: 'bold',
+    color: '#333',
+  },
+  // 공급자/공급받는자 2단 구성
+  partiesRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 16,
+  },
+  partyCol: {
+    flex: 1,
+    padding: 12,
+    backgroundColor: '#f9fafb',
+    borderRadius: 4,
+  },
+  partyTitle: {
+    fontSize: 10,
+    fontWeight: 'bold',
+    color: '#6b7280',
+    marginBottom: 6,
+    paddingBottom: 4,
+    borderBottom: '1px solid #e5e7eb',
+  },
+  partyName: {
+    fontSize: 12,
+    fontWeight: 'bold',
+    color: '#000',
+    marginBottom: 4,
+  },
+  partyLine: {
+    fontSize: 9,
+    color: '#374151',
+    marginBottom: 2,
   },
   table: {
     marginTop: 30,
@@ -133,25 +179,44 @@ export function InvoicePDFDocument({ invoice }: InvoicePDFDocumentProps) {
         {/* 헤더 */}
         <View style={styles.header}>
           <Text style={styles.title}>견적서</Text>
-          <View style={styles.infoRow}>
-            <Text style={styles.label}>견적서 번호:</Text>
-            <Text style={styles.value}>{invoice.invoiceNumber}</Text>
-          </View>
-          <View style={styles.infoRow}>
-            <Text style={styles.label}>클라이언트:</Text>
-            <Text style={styles.value}>{invoice.clientName}</Text>
-          </View>
-          <View style={styles.infoRow}>
-            <Text style={styles.label}>발행일:</Text>
-            <Text style={styles.value}>
+
+          {/* 견적 메타 정보 */}
+          <View style={styles.metaRow}>
+            <Text style={styles.metaItem}>
+              <Text style={styles.metaLabel}>견적서 번호 </Text>
+              {invoice.invoiceNumber}
+            </Text>
+            <Text style={styles.metaItem}>
+              <Text style={styles.metaLabel}>발행일 </Text>
               {formatDate(invoice.issueDate, 'short')}
             </Text>
-          </View>
-          <View style={styles.infoRow}>
-            <Text style={styles.label}>유효기간:</Text>
-            <Text style={styles.value}>
+            <Text style={styles.metaItem}>
+              <Text style={styles.metaLabel}>유효기간 </Text>
               {formatDate(invoice.validUntil, 'short')}
             </Text>
+          </View>
+
+          {/* 공급받는자(클라이언트) / 공급자(발행업체) */}
+          <View style={styles.partiesRow}>
+            <View style={styles.partyCol}>
+              <Text style={styles.partyTitle}>받는 분 (공급받는자)</Text>
+              <Text style={styles.partyName}>{invoice.clientName}</Text>
+              {invoice.businessNumber ? (
+                <Text style={styles.partyLine}>
+                  사업자번호: {invoice.businessNumber}
+                </Text>
+              ) : null}
+            </View>
+            <View style={styles.partyCol}>
+              <Text style={styles.partyTitle}>발행업체 (공급자)</Text>
+              <Text style={styles.partyName}>{COMPANY_INFO.name}</Text>
+              <Text style={styles.partyLine}>
+                사업자번호: {COMPANY_INFO.businessNumber}
+              </Text>
+              <Text style={styles.partyLine}>{COMPANY_INFO.address}</Text>
+              <Text style={styles.partyLine}>Tel. {COMPANY_INFO.phone}</Text>
+              <Text style={styles.partyLine}>{COMPANY_INFO.email}</Text>
+            </View>
           </View>
         </View>
 

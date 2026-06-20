@@ -36,6 +36,18 @@ export const PDF_CONFIG = {
 } as const
 
 /**
+ * 발행업체(공급자) 정보 — PDF 견적서에 표시
+ * TODO: 실제 발행업체 정보로 교체하세요.
+ */
+export const COMPANY_INFO = {
+  name: '주식회사 예시컴퍼니',
+  businessNumber: '000-00-00000',
+  address: '서울특별시 강남구 테헤란로 000, 0층',
+  phone: '02-0000-0000',
+  email: 'contact@example.com',
+} as const
+
+/**
  * 에러 메시지 상수
  */
 export const ERROR_MESSAGES = {
