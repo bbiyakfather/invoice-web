@@ -21,18 +21,24 @@ export async function getNotionPage(pageId: string) {
 /**
  * 데이터베이스의 data_source_id를 조회하고 캐싱합니다.
  * Notion API v5에서는 database_id 대신 data_source_id를 사용해야 합니다.
+ * 견적서/항목 등 DB가 여러 개일 수 있으므로 database_id별로 캐싱합니다.
+ *
+ * @param databaseId - 조회할 Notion 데이터베이스 ID (기본: 견적서 DB)
  */
-let cachedDataSourceId: string | null = null
+const dataSourceCache = new Map<string, string>()
 
-export async function getDataSourceId(): Promise<string> {
+export async function getDataSourceId(
+  databaseId: string = env.NOTION_DATABASE_ID
+): Promise<string> {
   // 이미 캐싱된 경우 바로 반환
-  if (cachedDataSourceId) {
-    return cachedDataSourceId
+  const cached = dataSourceCache.get(databaseId)
+  if (cached) {
+    return cached
   }
 
   try {
     const response = await notion.databases.retrieve({
-      database_id: env.NOTION_DATABASE_ID,
+      database_id: databaseId,
     })
 
     // v5에서 database는 data_sources 배열을 반환
@@ -45,7 +51,7 @@ export async function getDataSourceId(): Promise<string> {
 
     // 첫 번째 data_source 사용 (일반적인 케이스)
     const dataSourceId = dataSources[0].id
-    cachedDataSourceId = dataSourceId
+    dataSourceCache.set(databaseId, dataSourceId)
     logger.info('Data Source ID 캐싱 완료', {
       dataSourceId,
     })
@@ -53,7 +59,7 @@ export async function getDataSourceId(): Promise<string> {
     return dataSourceId
   } catch (error) {
     logger.error('Data Source ID 조회 실패', {
-      databaseId: env.NOTION_DATABASE_ID,
+      databaseId,
       error,
     })
     throw error

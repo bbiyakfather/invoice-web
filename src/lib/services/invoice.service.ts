@@ -3,19 +3,28 @@
  * 견적서 데이터 조회 및 처리 로직
  */
 
+import { revalidatePath, revalidateTag } from 'next/cache'
 import { createCachedInvoiceFetcher, getInvoiceWithDedup } from '@/lib/cache'
 import { ERROR_MESSAGES } from '@/lib/constants'
+import { env } from '@/lib/env'
 import { logger } from '@/lib/logger'
 import { getDataSourceId, notion } from '@/lib/notion'
-import { transformNotionToInvoice } from '@/lib/utils/notion-parser'
-import type { Invoice, InvoiceStatus } from '@/types/invoice'
+import {
+  buildInvoicePropertiesPayload,
+  buildItemPropertiesPayload,
+  transformNotionToInvoice,
+} from '@/lib/utils/notion-parser'
+import type { Invoice, InvoiceItem, InvoiceStatus } from '@/types/invoice'
 import type {
   InvoicePageProperties,
   ItemPageProperties,
   NotionPage,
 } from '@/types/notion'
 import { isInvoicePage, isItemPage } from '@/types/notion'
-import type { GetPageResponse } from '@notionhq/client/build/src/api-endpoints'
+import type {
+  CreatePageParameters,
+  GetPageResponse,
+} from '@notionhq/client/build/src/api-endpoints'
 
 /**
  * 견적서 검색 필터 인터페이스
@@ -176,7 +185,7 @@ export async function getInvoiceFromNotion(pageId: string): Promise<Invoice> {
     const page = await fetchInvoicePage(pageId)
 
     // 2. 관련 항목 ID 추출
-    const itemIds = page.properties.항목?.relation?.map(r => r.id) || []
+    const itemIds = page.properties.items?.relation?.map(r => r.id) || []
 
     // 3. 항목 데이터 병렬 조회
     const items = await fetchInvoiceItems(itemIds)
@@ -240,7 +249,7 @@ export async function getInvoicesFromNotion(
     const limitedPageSize = Math.min(pageSize, 100)
 
     // 정렬 속성 매핑
-    const sortProperty = sortBy === 'issue_date' ? '발행일' : '총 금액'
+    const sortProperty = sortBy === 'issue_date' ? 'issue_date' : 'total_amount'
     const sortDirection = 'descending' as const
 
     // v5에서는 data_source_id 필요
@@ -265,7 +274,7 @@ export async function getInvoicesFromNotion(
         .filter((page): page is NotionPage => 'properties' in page)
         .filter(isInvoicePage)
         .map(async page => {
-          const itemIds = page.properties.항목?.relation?.map(r => r.id) || []
+          const itemIds = page.properties.items?.relation?.map(r => r.id) || []
           const items = await fetchInvoiceItems(itemIds)
           return transformNotionToInvoice(page, items)
         })
@@ -319,36 +328,29 @@ export async function searchInvoices(
       notionFilters.push({
         or: [
           {
-            property: '클라이언트명',
+            property: 'client_name',
             rich_text: { contains: filters.query },
           },
           {
-            property: '견적서 번호',
+            property: 'invoice_number',
             title: { contains: filters.query },
           },
         ],
       })
     }
 
-    // 2. 상태 필터
+    // 2. 상태 필터 (Notion 옵션 값이 InvoiceStatus와 동일한 영문이므로 직접 사용)
     if (filters.status) {
-      // InvoiceStatus -> Notion 상태 값 매핑
-      const statusMap: Record<InvoiceStatus, string> = {
-        pending: '대기',
-        approved: '승인',
-        rejected: '거절',
-      }
-
       notionFilters.push({
-        property: '상태',
-        select: { equals: statusMap[filters.status] },
+        property: 'status',
+        select: { equals: filters.status },
       })
     }
 
     // 3. 날짜 범위 필터
     if (filters.dateFrom || filters.dateTo) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const dateFilter: any = { property: '발행일', date: {} }
+      const dateFilter: any = { property: 'issue_date', date: {} }
 
       if (filters.dateFrom) {
         dateFilter.date.on_or_after = filters.dateFrom
@@ -376,7 +378,7 @@ export async function searchInvoices(
           : undefined,
       sorts: [
         {
-          property: '발행일',
+          property: 'issue_date',
           direction: 'descending',
         },
       ],
@@ -388,7 +390,7 @@ export async function searchInvoices(
         .filter((page): page is NotionPage => 'properties' in page)
         .filter(isInvoicePage)
         .map(async page => {
-          const itemIds = page.properties.항목?.relation?.map(r => r.id) || []
+          const itemIds = page.properties.items?.relation?.map(r => r.id) || []
           const items = await fetchInvoiceItems(itemIds)
           return transformNotionToInvoice(page, items)
         })
@@ -414,5 +416,134 @@ export async function searchInvoices(
       name: errorObj.name,
     })
     throw new Error('견적서 검색에 실패했습니다')
+  }
+}
+
+/**
+ * 견적서 변경 후 관련 캐시 무효화
+ * unstable_cache 태그('invoice')와 관련 라우트 경로를 함께 무효화한다.
+ * @param invoiceId - 변경된 견적서 ID (상세 페이지 무효화용, 선택)
+ */
+function revalidateInvoiceCaches(invoiceId?: string): void {
+  revalidateTag('invoice')
+  revalidatePath('/admin/invoices')
+  revalidatePath('/admin/clients')
+  revalidatePath('/admin')
+  if (invoiceId) {
+    revalidatePath(`/invoice/${invoiceId}`)
+  }
+}
+
+/**
+ * 견적서 상위 속성 수정 (Notion pages.update)
+ * @param pageId - 견적서 페이지 ID
+ * @param data - 수정할 Invoice 부분 데이터 (제공된 필드만 반영)
+ * @throws Error - 수정 실패 시
+ */
+export async function updateInvoice(
+  pageId: string,
+  data: Partial<Invoice>
+): Promise<void> {
+  try {
+    await withRetry(() =>
+      notion.pages.update({
+        page_id: pageId,
+        properties: buildInvoicePropertiesPayload(data),
+      })
+    )
+    revalidateInvoiceCaches(pageId)
+    logger.info('견적서 수정 성공', { pageId })
+  } catch (error) {
+    const errorObj = error as Error
+    logger.error('견적서 수정 실패', { pageId, error: errorObj.message })
+    throw new Error(ERROR_MESSAGES.INVOICE_UPDATE_ERROR)
+  }
+}
+
+/**
+ * 견적 항목 신규 생성
+ * 항목은 견적서와 별개 Notion DB이므로 NOTION_ITEMS_DATABASE_ID 설정이 필요하다.
+ * @param invoiceId - 연결할 견적서 페이지 ID
+ * @param item - 생성할 항목 데이터 (id 제외)
+ * @throws Error - 항목 DB 미설정 또는 생성 실패 시
+ */
+export async function createInvoiceItem(
+  invoiceId: string,
+  item: Omit<InvoiceItem, 'id'>
+): Promise<void> {
+  const itemsDatabaseId = env.NOTION_ITEMS_DATABASE_ID
+  if (!itemsDatabaseId) {
+    throw new Error(ERROR_MESSAGES.ITEMS_DB_NOT_CONFIGURED)
+  }
+  try {
+    const dataSourceId = await getDataSourceId(itemsDatabaseId)
+    const createParams = {
+      parent: { type: 'data_source_id', data_source_id: dataSourceId },
+      properties: buildItemPropertiesPayload(item, invoiceId),
+    }
+    // Notion API v5의 data_source_id 부모 생성 (SDK 타입 버전차 보정)
+    await withRetry(() =>
+      notion.pages.create(createParams as unknown as CreatePageParameters)
+    )
+    revalidateInvoiceCaches(invoiceId)
+    logger.info('견적 항목 생성 성공', { invoiceId })
+  } catch (error) {
+    const errorObj = error as Error
+    logger.error('견적 항목 생성 실패', { invoiceId, error: errorObj.message })
+    if (errorObj.message === ERROR_MESSAGES.ITEMS_DB_NOT_CONFIGURED) {
+      throw error
+    }
+    throw new Error(ERROR_MESSAGES.ITEM_UPDATE_ERROR)
+  }
+}
+
+/**
+ * 견적 항목 수정 (Notion pages.update)
+ * @param itemId - 항목 페이지 ID
+ * @param item - 수정할 항목 부분 데이터
+ * @param invoiceId - 소속 견적서 ID (캐시 무효화용, 선택)
+ * @throws Error - 수정 실패 시
+ */
+export async function updateInvoiceItem(
+  itemId: string,
+  item: Partial<Omit<InvoiceItem, 'id'>>,
+  invoiceId?: string
+): Promise<void> {
+  try {
+    await withRetry(() =>
+      notion.pages.update({
+        page_id: itemId,
+        properties: buildItemPropertiesPayload(item),
+      })
+    )
+    revalidateInvoiceCaches(invoiceId)
+    logger.info('견적 항목 수정 성공', { itemId })
+  } catch (error) {
+    const errorObj = error as Error
+    logger.error('견적 항목 수정 실패', { itemId, error: errorObj.message })
+    throw new Error(ERROR_MESSAGES.ITEM_UPDATE_ERROR)
+  }
+}
+
+/**
+ * 견적 항목 삭제 (Notion 아카이브 처리)
+ * @param itemId - 항목 페이지 ID
+ * @param invoiceId - 소속 견적서 ID (캐시 무효화용, 선택)
+ * @throws Error - 삭제 실패 시
+ */
+export async function archiveInvoiceItem(
+  itemId: string,
+  invoiceId?: string
+): Promise<void> {
+  try {
+    await withRetry(() =>
+      notion.pages.update({ page_id: itemId, archived: true })
+    )
+    revalidateInvoiceCaches(invoiceId)
+    logger.info('견적 항목 삭제 성공', { itemId })
+  } catch (error) {
+    const errorObj = error as Error
+    logger.error('견적 항목 삭제 실패', { itemId, error: errorObj.message })
+    throw new Error(ERROR_MESSAGES.ITEM_UPDATE_ERROR)
   }
 }

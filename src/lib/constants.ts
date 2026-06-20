@@ -17,22 +17,13 @@ export type InvoiceStatusKey = keyof typeof INVOICE_STATUS
 export type InvoiceStatusValue = (typeof INVOICE_STATUS)[InvoiceStatusKey]
 
 /**
- * 견적서 상태 한글 레이블
- * Notion의 한글 상태값과 영문 상태값 매핑
+ * 견적서 상태 한글 레이블 (UI 표시용)
+ * 영문 상태값(pending/approved/rejected)을 한글 레이블로 변환
  */
 export const INVOICE_STATUS_LABELS = {
   pending: '대기',
   approved: '승인',
   rejected: '거절',
-} as const
-
-/**
- * 한글 상태값을 영문 상태값으로 변환
- */
-export const KOREAN_TO_STATUS_MAP = {
-  대기: 'pending',
-  승인: 'approved',
-  거절: 'rejected',
 } as const
 
 /**
@@ -53,6 +44,10 @@ export const ERROR_MESSAGES = {
   PDF_GENERATION_ERROR: 'PDF 생성 중 오류가 발생했습니다.',
   INVALID_INVOICE_DATA: '유효하지 않은 견적서 데이터입니다.',
   MISSING_REQUIRED_FIELD: '필수 필드가 누락되었습니다.',
+  INVOICE_UPDATE_ERROR: '견적서 수정 중 오류가 발생했습니다.',
+  ITEM_UPDATE_ERROR: '견적 항목 처리 중 오류가 발생했습니다.',
+  ITEMS_DB_NOT_CONFIGURED:
+    '항목 데이터베이스가 설정되지 않았습니다. NOTION_ITEMS_DATABASE_ID 환경변수를 설정하세요.',
 } as const
 
 /**

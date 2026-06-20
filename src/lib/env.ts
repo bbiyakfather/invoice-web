@@ -22,6 +22,11 @@ const envSchema = z.object({
     .string()
     .min(1, 'NOTION_DATABASE_ID는 필수입니다')
     .length(32, 'NOTION_DATABASE_ID는 32자여야 합니다'),
+  // 견적 항목(items) 전용 Notion DB ID (항목 신규 생성 시에만 필요, 선택)
+  NOTION_ITEMS_DATABASE_ID: z
+    .string()
+    .length(32, 'NOTION_ITEMS_DATABASE_ID는 32자여야 합니다')
+    .optional(),
   // 관리자 인증 환경변수
   ADMIN_PASSWORD: z
     .string()
@@ -38,6 +43,7 @@ export const env = envSchema.parse({
   NEXT_PUBLIC_BASE_URL: process.env.NEXT_PUBLIC_BASE_URL,
   NOTION_API_KEY: process.env.NOTION_API_KEY,
   NOTION_DATABASE_ID: process.env.NOTION_DATABASE_ID,
+  NOTION_ITEMS_DATABASE_ID: process.env.NOTION_ITEMS_DATABASE_ID,
   ADMIN_PASSWORD: process.env.ADMIN_PASSWORD,
   SESSION_SECRET: process.env.SESSION_SECRET,
 })
