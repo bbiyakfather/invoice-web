@@ -13,13 +13,22 @@
 
 ### 환경 변수 설정
 
-- [ ] `.env.production` 파일 확인
+- [ ] `.env.example` 참조하여 모든 변수 확인
 - [ ] 필수 환경 변수 설정 완료:
   - [ ] `NOTION_API_KEY`
   - [ ] `NOTION_DATABASE_ID`
-  - [ ] `ADMIN_PASSWORD` (강력한 비밀번호)
-  - [ ] `SESSION_SECRET` (32자 랜덤 문자열)
-  - [ ] `NEXT_PUBLIC_BASE_URL` (프로덕션 도메인)
+  - [ ] `ADMIN_PASSWORD` (강력한 비밀번호, 최소 8자)
+  - [ ] `SESSION_SECRET` (정확히 32자 랜덤 문자열)
+  - [ ] `NEXT_PUBLIC_BASE_URL` (프로덕션 도메인 — 견적서 공유 링크에 사용, 미설정 시 localhost 링크 생성됨)
+- [ ] 선택 환경 변수:
+  - [ ] `NOTION_ITEMS_DATABASE_ID` (견적 **항목 신규 생성** 기능 사용 시 필요)
+
+### 선행 설정 (신규 기능)
+
+- [ ] **Notion 견적서 DB에 `business_number`(텍스트/rich_text) 속성 추가**
+  - 사업자번호 편집 저장 및 **고객 랜딩 조회(사업자번호 단독 조회)**에 필수
+  - 미추가 시: 편집은 되나 사업자번호는 저장되지 않고, 랜딩 조회는 항상 결과 없음
+- [ ] `src/lib/constants.ts`의 `COMPANY_INFO`를 **실제 발행업체 정보**로 교체 (PDF 우측 상단 표시)
 
 ### 보안 점검
 
@@ -56,17 +65,21 @@
 # Notion API
 NOTION_API_KEY=secret_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 NOTION_DATABASE_ID=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+# (선택) 견적 항목 신규 생성 기능 사용 시
+NOTION_ITEMS_DATABASE_ID=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 
 # 관리자 인증
 ADMIN_PASSWORD=your-strong-password-here
 SESSION_SECRET=your-32-character-secret-here
 
-# 애플리케이션 URL
+# 애플리케이션 URL (커스텀 도메인 사용 시 필수)
 NEXT_PUBLIC_BASE_URL=https://your-domain.vercel.app
 
-# Next.js 환경
+# Next.js 환경 (Vercel이 자동 설정)
 NODE_ENV=production
 ```
+
+> 참고: `NEXT_PUBLIC_BASE_URL`을 비워두면 Vercel 배포 URL(`VERCEL_URL`)로 자동 폴백됩니다. 단, 커스텀 도메인을 쓰면 반드시 해당 도메인으로 지정하세요.
 
 #### Preview 환경 (선택사항)
 
@@ -237,8 +250,9 @@ NODE_ENV=production
 
 ### Rate Limiting
 
-- 관리자 로그인 시도 제한: 5회/60초
-- API 요청 제한: Notion API 제한 준수
+- API 요청 제한: 미들웨어에서 IP당 분당 10회 (`src/lib/rate-limit.ts`)
+- ⚠️ **서버리스 한계**: 인메모리 카운터라 Vercel 서버리스 **인스턴스마다 분리**되고 콜드스타트 시 리셋됩니다. 엄밀한 전역 제한이 아니므로, 강한 제한이 필요하면 추후 Upstash/Vercel KV 등 외부 스토어로 전환을 권장합니다.
+- PDF 생성(`/api/generate-pdf`)은 Node 런타임 고정 + `maxDuration=30s`로 설정되어 있습니다.
 
 ---
 

@@ -150,23 +150,24 @@ npm start
 
 ## 🗄️ 노션 데이터베이스 구조
 
-### Invoices (견적서 데이터베이스)
+### invoice (견적서 데이터베이스)
 
-- 견적서 번호 (Title)
-- 클라이언트명 (Text)
-- 발행일 (Date)
-- 유효기간 (Date)
-- 상태 (Select: 대기/승인/거절)
-- 총 금액 (Number)
-- 항목 (Relation → Items)
+- invoice_number (Title)
+- client_name (Text)
+- business_number (Text) — 사업자번호, 고객 랜딩 조회·PDF 표시에 사용
+- issue_date (Date)
+- valid_until (Date)
+- status (Select: pending/approved/rejected)
+- total_amount (Number)
+- items (Relation → items)
 
-### Items (견적 항목 데이터베이스)
+### items (견적 항목 데이터베이스)
 
-- 항목명 (Title)
-- 수량 (Number)
-- 단가 (Number)
-- 금액 (Formula: 수량 × 단가)
-- 견적서 (Relation → Invoices)
+- item_name (Title)
+- quantity (Number)
+- unit_price (Number)
+- amount (Number 또는 Formula: quantity × unit_price)
+- invoices (Relation → invoice)
 
 ## ✅ MVP 성공 기준
 
@@ -257,16 +258,23 @@ npm run check-all   # 모든 검사 통합 실행
 
 **Settings → Environment Variables**에서 다음 변수 추가:
 
-| 변수명               | 값                   | 환경                | 설명                           |
-| -------------------- | -------------------- | ------------------- | ------------------------------ |
-| `NOTION_API_KEY`     | `secret_xxxxx...`    | Production, Preview | Notion Integration Token       |
-| `NOTION_DATABASE_ID` | `xxxxxxxx...` (32자) | Production, Preview | 견적서 데이터베이스 ID         |
-| `NODE_ENV`           | `production`         | Production          | 자동 설정됨 (수동 설정 불필요) |
+| 변수명                     | 값                    | 환경                | 설명                                                |
+| -------------------------- | --------------------- | ------------------- | --------------------------------------------------- |
+| `NOTION_API_KEY`           | `secret_xxxxx...`     | Production, Preview | Notion Integration Token                            |
+| `NOTION_DATABASE_ID`       | `xxxxxxxx...` (32자)  | Production, Preview | 견적서 데이터베이스 ID                              |
+| `ADMIN_PASSWORD`           | 강력한 비밀번호       | Production, Preview | 관리자 로그인 (최소 8자)                            |
+| `SESSION_SECRET`           | 32자 랜덤 문자열      | Production, Preview | 세션 서명 (`openssl rand -base64 24 \| cut -c1-32`) |
+| `NEXT_PUBLIC_BASE_URL`     | `https://your-domain` | Production, Preview | 견적서 공유 링크 도메인 (미설정 시 Vercel URL 폴백) |
+| `NOTION_ITEMS_DATABASE_ID` | `xxxxxxxx...` (32자)  | Production, Preview | (선택) 견적 **항목 신규 생성** 사용 시              |
+| `NODE_ENV`                 | `production`          | Production          | 자동 설정됨 (수동 설정 불필요)                      |
 
 **환경 변수 획득 방법**:
 
 - `NOTION_API_KEY`: [Notion Integrations](https://www.notion.so/my-integrations) → Create new integration
 - `NOTION_DATABASE_ID`: Notion 데이터베이스 URL에서 확인 (32자 해시)
+- 전체 변수 설명은 저장소 루트의 `.env.example` 참조
+
+> ⚠️ **배포 전 선행 설정**: Notion 견적서 DB에 `business_number`(텍스트) 속성을 추가해야 사업자번호 저장·고객 랜딩 조회가 동작합니다. 또한 PDF 발행업체 정보는 `src/lib/constants.ts`의 `COMPANY_INFO`를 실제 값으로 교체하세요.
 
 #### 3️⃣ 배포 실행
 
@@ -337,8 +345,9 @@ npm run check-all   # 모든 검사 통합 실행
 
 **문제: PDF 다운로드 안됨**
 
-- 해결: Vercel Functions timeout 확인 (무료 플랜: 10초)
-- 폰트 파일이 `public/fonts`에 있는지 확인
+- PDF 라우트는 `runtime='nodejs'` + `maxDuration=30`으로 설정됨 (`src/app/api/generate-pdf/route.ts`)
+- 해결: Vercel 플랜별 함수 최대 실행시간 확인 (Hobby 플랜은 상한이 낮을 수 있음)
+- 한글 폰트는 Google Fonts CDN에서 런타임 로드 — 네트워크 차단 여부 확인
 
 **문제: Rate Limiting 작동 안 함**
 
