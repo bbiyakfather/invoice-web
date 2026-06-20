@@ -154,10 +154,13 @@ async function withRetry<T>(
       return await fn()
     } catch (error) {
       lastError = error as Error
+      const errorCode = (error as { code?: string }).code
 
       // 마지막 시도이거나 재시도 불가능한 에러인 경우
+      // (validation_error는 입력/스키마 문제로 재시도해도 동일 실패 → 즉시 throw)
       if (
         i === maxRetries - 1 ||
+        errorCode === 'validation_error' ||
         lastError.message === ERROR_MESSAGES.INVOICE_NOT_FOUND ||
         lastError.message === ERROR_MESSAGES.INVALID_INVOICE_DATA
       ) {
@@ -425,36 +428,31 @@ export async function searchInvoices(
 }
 
 /**
- * 고객 본인확인 견적서 조회 (사명 + 사업자번호 정확일치 동시 충족)
- * 공개 라우트에서 사용하므로 부분일치를 허용하지 않고, 둘 중 하나라도
+ * 고객 본인확인 견적서 조회 (사업자번호 정확일치)
+ * 공개 라우트에서 사용하므로 부분일치를 허용하지 않고, 사업자번호가
  * 비어 있거나 불일치하면 빈 결과를 반환한다(타사 견적서 노출 방지).
  *
- * @param clientName - 사명 (정확일치)
  * @param businessNumber - 사업자번호 (정확일치)
  * @returns 본인확인을 통과한 견적서 목록
  */
-export async function lookupInvoicesByClient(
-  clientName: string,
+export async function lookupInvoicesByBusinessNumber(
   businessNumber: string
 ): Promise<Invoice[]> {
-  const name = clientName.trim()
   const bizNumber = businessNumber.trim()
 
-  // 본인확인: 두 값 모두 입력되어야 조회
-  if (!name || !bizNumber) {
+  // 본인확인: 사업자번호가 입력되어야 조회
+  if (!bizNumber) {
     return []
   }
 
   try {
     const dataSourceId = await getDataSourceId()
 
-    // 정확일치(equals) 동시 충족 필터
+    // 사업자번호 정확일치(equals) 필터
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const filter: any = {
-      and: [
-        { property: 'client_name', rich_text: { equals: name } },
-        { property: 'business_number', rich_text: { equals: bizNumber } },
-      ],
+      property: 'business_number',
+      rich_text: { equals: bizNumber },
     }
 
     const response = await notion.dataSources.query({
@@ -596,6 +594,40 @@ export async function updateInvoice(
     logger.info('견적서 수정 성공', { pageId })
   } catch (error) {
     const errorObj = error as Error
+    const errorCode = (error as { code?: string }).code
+
+    // business_number 속성이 Notion DB에 없을 때: 해당 필드를 제외하고 재시도해
+    // 견적서 수정이 통째로 실패하지 않도록 한다(선택 기능 우아한 비활성화).
+    const missingBizProperty =
+      errorCode === 'validation_error' &&
+      errorObj.message.includes('business_number') &&
+      data.businessNumber !== undefined
+
+    if (missingBizProperty) {
+      const dataWithoutBiz = { ...data }
+      delete dataWithoutBiz.businessNumber
+      try {
+        await withRetry(() =>
+          notion.pages.update({
+            page_id: pageId,
+            properties: buildInvoicePropertiesPayload(dataWithoutBiz),
+          })
+        )
+        revalidateInvoiceCaches(pageId)
+        logger.warn(
+          'business_number 속성이 없어 사업자번호를 제외하고 저장했습니다',
+          { pageId }
+        )
+        return
+      } catch (retryError) {
+        logger.error('견적서 수정 실패(재시도)', {
+          pageId,
+          error: (retryError as Error).message,
+        })
+        throw new Error(ERROR_MESSAGES.INVOICE_UPDATE_ERROR)
+      }
+    }
+
     logger.error('견적서 수정 실패', { pageId, error: errorObj.message })
     throw new Error(ERROR_MESSAGES.INVOICE_UPDATE_ERROR)
   }

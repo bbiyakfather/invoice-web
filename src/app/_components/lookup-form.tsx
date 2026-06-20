@@ -28,19 +28,18 @@ const statusVariant: Record<
 }
 
 export function LookupForm() {
-  const [clientName, setClientName] = useState('')
   const [businessNumber, setBusinessNumber] = useState('')
   const [results, setResults] = useState<Invoice[]>([])
   const [searched, setSearched] = useState(false)
   const [isPending, startTransition] = useTransition()
 
-  const canSubmit = clientName.trim() !== '' && businessNumber.trim() !== ''
+  const canSubmit = businessNumber.trim() !== ''
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     if (!canSubmit) return
     startTransition(async () => {
-      const result = await lookupAction(clientName, businessNumber)
+      const result = await lookupAction(businessNumber)
       setResults(result.invoices)
       setSearched(result.searched)
     })
@@ -51,17 +50,6 @@ export function LookupForm() {
       <Card>
         <CardContent className="pt-6">
           <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="space-y-2">
-              <label htmlFor="clientName" className="text-sm font-medium">
-                사명
-              </label>
-              <Input
-                id="clientName"
-                placeholder="예: ABC 주식회사"
-                value={clientName}
-                onChange={e => setClientName(e.target.value)}
-              />
-            </div>
             <div className="space-y-2">
               <label htmlFor="businessNumber" className="text-sm font-medium">
                 사업자번호
@@ -82,7 +70,7 @@ export function LookupForm() {
               {isPending ? '조회 중...' : '견적서 조회'}
             </Button>
             <p className="text-muted-foreground text-center text-xs">
-              본인확인을 위해 사명과 사업자번호가 모두 일치해야 조회됩니다.
+              본인확인을 위해 사업자번호가 일치해야 조회됩니다.
             </p>
           </form>
         </CardContent>

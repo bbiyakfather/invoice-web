@@ -4,7 +4,7 @@
 
 'use server'
 
-import { lookupInvoicesByClient } from '@/lib/services/invoice.service'
+import { lookupInvoicesByBusinessNumber } from '@/lib/services/invoice.service'
 import type { Invoice } from '@/types/invoice'
 
 /** 고객 조회 결과 */
@@ -16,13 +16,12 @@ export type LookupResult = {
 }
 
 /**
- * 사명 + 사업자번호로 본인 견적서 조회 (공개)
- * 둘 다 정확히 일치해야 결과를 반환한다.
+ * 사업자번호로 본인 견적서 조회 (공개)
+ * 사업자번호가 정확히 일치해야 결과를 반환한다.
  */
 export async function lookupAction(
-  clientName: string,
   businessNumber: string
 ): Promise<LookupResult> {
-  const invoices = await lookupInvoicesByClient(clientName, businessNumber)
+  const invoices = await lookupInvoicesByBusinessNumber(businessNumber)
   return { invoices, searched: true }
 }

@@ -16,7 +16,7 @@ export default function Home() {
             <div className="mb-8 text-center">
               <h1 className="mb-3 text-4xl font-bold">견적서 조회</h1>
               <p className="text-muted-foreground text-lg">
-                사명과 사업자번호를 입력하면 발행된 견적서를 확인할 수 있습니다
+                사업자번호를 입력하면 발행된 견적서를 확인할 수 있습니다
               </p>
             </div>
 
