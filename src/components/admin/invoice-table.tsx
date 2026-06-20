@@ -6,32 +6,20 @@ import {
   TableHead,
   TableCell,
 } from '@/components/ui/table'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import type { Invoice, InvoiceStatus } from '@/types/invoice'
+import type { Invoice } from '@/types/invoice'
 import { formatCurrency, formatDate } from '@/lib/format'
 import Link from 'next/link'
-import { ExternalLink, ArrowUpDown } from 'lucide-react'
+import { ExternalLink, ArrowUpDown, Pencil } from 'lucide-react'
 import { generateInvoiceUrl } from '@/lib/utils/link-generator'
 import { LinkDisplay } from '@/components/admin/link-display'
 import { CopyButton } from '@/components/admin/copy-button'
 import { ShareButton } from '@/components/admin/share-button'
+import { StatusSelect } from '@/components/admin/status-select'
 
 interface InvoiceTableProps {
   invoices: Invoice[]
   currentSort?: 'issue_date' | 'total_amount'
-}
-
-/**
- * 견적서 상태별 배지 설정
- */
-const statusConfig: Record<
-  InvoiceStatus,
-  { label: string; variant: 'default' | 'secondary' | 'destructive' }
-> = {
-  pending: { label: '대기', variant: 'default' },
-  approved: { label: '승인', variant: 'secondary' },
-  rejected: { label: '거절', variant: 'destructive' },
 }
 
 /**
@@ -102,9 +90,7 @@ export function InvoiceTable({ invoices, currentSort }: InvoiceTableProps) {
                 {formatCurrency(invoice.totalAmount)}
               </TableCell>
               <TableCell>
-                <Badge variant={statusConfig[invoice.status].variant}>
-                  {statusConfig[invoice.status].label}
-                </Badge>
+                <StatusSelect invoiceId={invoice.id} status={invoice.status} />
               </TableCell>
               <TableCell>
                 <div className="flex items-center gap-2">
@@ -118,12 +104,20 @@ export function InvoiceTable({ invoices, currentSort }: InvoiceTableProps) {
                 </div>
               </TableCell>
               <TableCell className="text-right">
-                <Button variant="ghost" size="sm" asChild>
-                  <Link href={`/invoice/${invoice.id}`} target="_blank">
-                    보기
-                    <ExternalLink className="ml-2 h-4 w-4" />
-                  </Link>
-                </Button>
+                <div className="flex items-center justify-end gap-1">
+                  <Button variant="ghost" size="sm" asChild>
+                    <Link href={`/admin/invoices/${invoice.id}`}>
+                      수정
+                      <Pencil className="ml-2 h-4 w-4" />
+                    </Link>
+                  </Button>
+                  <Button variant="ghost" size="sm" asChild>
+                    <Link href={`/invoice/${invoice.id}`} target="_blank">
+                      보기
+                      <ExternalLink className="ml-2 h-4 w-4" />
+                    </Link>
+                  </Button>
+                </div>
               </TableCell>
             </TableRow>
           ))}

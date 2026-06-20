@@ -22,12 +22,12 @@ export const itemSchema = z.object({
  */
 export const invoiceEditSchema = z.object({
   clientName: z.string().min(1, '클라이언트명을 입력하세요'),
-  businessNumber: z.string().default(''),
+  businessNumber: z.string(),
   issueDate: z.string().min(1, '발행일을 입력하세요'),
   validUntil: z.string().min(1, '유효기간을 입력하세요'),
   status: z.enum(['pending', 'approved', 'rejected']),
   totalAmount: z.number().min(0, '총액은 0 이상이어야 합니다'),
-  items: z.array(itemSchema).default([]),
+  items: z.array(itemSchema),
 })
 
 /** 견적서 수정 입력 타입 */
