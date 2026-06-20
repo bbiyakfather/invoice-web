@@ -35,9 +35,11 @@ export async function updateInvoiceAction(
     const originalItemIds = new Set(current.items.map(item => item.id))
 
     // 1) 상위 속성 수정
+    // 사업자번호는 값이 있을 때만 전송한다. 빈 값이면 payload에서 제외해
+    // Notion에 business_number 속성이 아직 없는 환경에서도 수정이 동작하게 한다.
     await updateInvoice(invoiceId, {
       clientName: data.clientName,
-      businessNumber: data.businessNumber,
+      ...(data.businessNumber ? { businessNumber: data.businessNumber } : {}),
       issueDate: data.issueDate,
       validUntil: data.validUntil,
       status: data.status,
