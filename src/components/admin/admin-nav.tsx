@@ -8,7 +8,7 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { cn } from '@/lib/utils'
-import { Home, FileText } from 'lucide-react'
+import { Home, FileText, Users } from 'lucide-react'
 
 /**
  * 네비게이션 항목 정의
@@ -23,6 +23,11 @@ const navItems = [
     href: '/admin/invoices',
     label: '견적서 목록',
     icon: FileText,
+  },
+  {
+    href: '/admin/clients',
+    label: '클라이언트 관리',
+    icon: Users,
   },
 ]
 
