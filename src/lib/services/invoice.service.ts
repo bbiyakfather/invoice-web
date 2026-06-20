@@ -425,6 +425,66 @@ export async function searchInvoices(
 }
 
 /**
+ * 고객 본인확인 견적서 조회 (사명 + 사업자번호 정확일치 동시 충족)
+ * 공개 라우트에서 사용하므로 부분일치를 허용하지 않고, 둘 중 하나라도
+ * 비어 있거나 불일치하면 빈 결과를 반환한다(타사 견적서 노출 방지).
+ *
+ * @param clientName - 사명 (정확일치)
+ * @param businessNumber - 사업자번호 (정확일치)
+ * @returns 본인확인을 통과한 견적서 목록
+ */
+export async function lookupInvoicesByClient(
+  clientName: string,
+  businessNumber: string
+): Promise<Invoice[]> {
+  const name = clientName.trim()
+  const bizNumber = businessNumber.trim()
+
+  // 본인확인: 두 값 모두 입력되어야 조회
+  if (!name || !bizNumber) {
+    return []
+  }
+
+  try {
+    const dataSourceId = await getDataSourceId()
+
+    // 정확일치(equals) 동시 충족 필터
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const filter: any = {
+      and: [
+        { property: 'client_name', rich_text: { equals: name } },
+        { property: 'business_number', rich_text: { equals: bizNumber } },
+      ],
+    }
+
+    const response = await notion.dataSources.query({
+      data_source_id: dataSourceId,
+      filter,
+      sorts: [{ property: 'issue_date', direction: 'descending' }],
+    })
+
+    const invoices = await Promise.all(
+      response.results
+        .filter((page): page is NotionPage => 'properties' in page)
+        .filter(isInvoicePage)
+        .map(async page => {
+          const itemIds = page.properties.items?.relation?.map(r => r.id) || []
+          const items = await fetchInvoiceItems(itemIds)
+          return transformNotionToInvoice(page, items)
+        })
+    )
+
+    logger.info('고객 견적서 조회 성공', { count: invoices.length })
+    return invoices
+  } catch (error) {
+    // 공개 조회: 오류 시에도 정보 노출 없이 빈 결과 반환
+    const errorObj = error as Error
+    logger.error('고객 견적서 조회 실패', { error: errorObj.message })
+    return []
+  }
+}
+
+/**
  * 견적서 client_name을 집계해 클라이언트 요약 목록 생성 (캐시 미적용 원본)
  * 항목(items) 조회를 생략해 N+1을 피하고 상위 속성만 읽는다.
  */
