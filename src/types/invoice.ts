@@ -37,6 +37,8 @@ export interface Invoice {
   invoiceNumber: string
   /** 클라이언트명 (예: ABC 회사) */
   clientName: string
+  /** 사업자번호 (고객 본인확인용, 없으면 빈 문자열) */
+  businessNumber: string
   /** 발행일 (ISO 8601 형식) */
   issueDate: string
   /** 유효기간 (ISO 8601 형식) */

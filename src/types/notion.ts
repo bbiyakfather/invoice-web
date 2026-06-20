@@ -24,37 +24,42 @@ export type NotionDatabase = DatabaseObjectResponse
  */
 export interface InvoicePageProperties {
   /** 견적서 번호 (Title 속성) */
-  '견적서 번호': {
+  invoice_number: {
     type: 'title'
     title: Array<{ plain_text: string }>
   }
   /** 클라이언트명 (Rich Text 속성) */
-  클라이언트명: {
+  client_name: {
+    type: 'rich_text'
+    rich_text: Array<{ plain_text: string }>
+  }
+  /** 사업자번호 (Rich Text 속성, 고객 본인확인용) */
+  business_number?: {
     type: 'rich_text'
     rich_text: Array<{ plain_text: string }>
   }
   /** 발행일 (Date 속성) */
-  발행일: {
+  issue_date: {
     type: 'date'
     date: { start: string } | null
   }
   /** 유효기간 (Date 속성) */
-  유효기간: {
+  valid_until: {
     type: 'date'
     date: { start: string } | null
   }
   /** 총 금액 (Number 속성) */
-  '총 금액': {
+  total_amount: {
     type: 'number'
     number: number | null
   }
-  /** 상태 (Select 속성: 대기/승인/거절) */
-  상태: {
+  /** 상태 (Select 속성: pending/approved/rejected) */
+  status: {
     type: 'select'
     select: { name: string } | null
   }
-  /** 항목 (Relation 속성 → Items) */
-  항목: {
+  /** 항목 (Relation 속성 → items DB) */
+  items: {
     type: 'relation'
     relation: Array<{ id: string }>
   }
@@ -66,27 +71,27 @@ export interface InvoicePageProperties {
  */
 export interface ItemPageProperties {
   /** 항목명 (Title 속성) */
-  항목명: {
+  item_name: {
     type: 'title'
     title: Array<{ plain_text: string }>
   }
   /** 수량 (Number 속성) */
-  수량: {
+  quantity: {
     type: 'number'
     number: number | null
   }
   /** 단가 (Number 속성) */
-  단가: {
+  unit_price: {
     type: 'number'
     number: number | null
   }
-  /** 금액 (Number 속성, Formula로 계산) */
-  금액: {
+  /** 금액 (Number 속성, 비우면 수량×단가로 재계산) */
+  amount: {
     type: 'number'
     number: number | null
   }
-  /** Invoices (Relation 속성 → Invoices) */
-  Invoices: {
+  /** invoices (Relation 속성 → invoice DB) */
+  invoices: {
     type: 'relation'
     relation: Array<{ id: string }>
   }
@@ -98,7 +103,7 @@ export interface ItemPageProperties {
 export function isInvoicePage(
   page: NotionPage
 ): page is NotionPage & { properties: InvoicePageProperties } {
-  return 'properties' in page && '견적서 번호' in page.properties
+  return 'properties' in page && 'invoice_number' in page.properties
 }
 
 /**
@@ -107,5 +112,5 @@ export function isInvoicePage(
 export function isItemPage(
   page: NotionPage
 ): page is NotionPage & { properties: ItemPageProperties } {
-  return 'properties' in page && '항목명' in page.properties
+  return 'properties' in page && 'item_name' in page.properties
 }

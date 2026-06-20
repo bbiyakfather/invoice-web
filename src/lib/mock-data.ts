@@ -60,6 +60,7 @@ export function generateMockInvoice(): Invoice {
     id: 'mock-invoice-001',
     invoiceNumber: 'INV-2025-001',
     clientName: 'ABC 주식회사',
+    businessNumber: '123-45-67890',
     issueDate: '2025-10-07',
     validUntil: '2025-10-21',
     items,
@@ -81,6 +82,7 @@ export function generateMockInvoices(count: number): Invoice[] {
       id: `mock-invoice-${String(index + 1).padStart(3, '0')}`,
       invoiceNumber: `INV-2025-${String(index + 1).padStart(3, '0')}`,
       clientName: `클라이언트 ${index + 1}`,
+      businessNumber: `${String(100 + index).padStart(3, '0')}-45-67890`,
     }
   })
 }

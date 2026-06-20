@@ -9,7 +9,7 @@ import type {
   ItemPageProperties,
 } from '@/types/notion'
 import type { Invoice, InvoiceItem, InvoiceStatus } from '@/types/invoice'
-import { KOREAN_TO_STATUS_MAP } from '@/lib/constants'
+import type { UpdatePageParameters } from '@notionhq/client/build/src/api-endpoints'
 
 /**
  * Notion 견적서 페이지를 Invoice 객체로 변환
@@ -25,15 +25,18 @@ export function transformNotionToInvoice(
 
   // null 체크와 기본값 처리
   const invoiceNumber =
-    extractPlainText(props['견적서 번호']?.title) || 'INV-UNKNOWN'
-  const clientName = extractPlainText(props.클라이언트명?.rich_text) || '미지정'
+    extractPlainText(props.invoice_number?.title) || 'INV-UNKNOWN'
+  const clientName = extractPlainText(props.client_name?.rich_text) || '미지정'
+  // 사업자번호는 옵셔널 속성: 없으면 빈 문자열 (하위호환)
+  const businessNumber =
+    extractPlainText(props.business_number?.rich_text) || ''
   const issueDate =
-    props.발행일?.date?.start || new Date().toISOString().split('T')[0]
+    props.issue_date?.date?.start || new Date().toISOString().split('T')[0]
   const validUntil =
-    props.유효기간?.date?.start || getDefaultValidUntil(issueDate)
+    props.valid_until?.date?.start || getDefaultValidUntil(issueDate)
   const totalAmount =
-    props['총 금액']?.number || calculateTotalFromItems(itemPages)
-  const status = mapKoreanStatus(props.상태?.select?.name)
+    props.total_amount?.number || calculateTotalFromItems(itemPages)
+  const status = mapStatus(props.status?.select?.name)
 
   // 항목 변환
   const items = itemPages.map(transformNotionToItem)
@@ -42,6 +45,7 @@ export function transformNotionToInvoice(
     id: page.id,
     invoiceNumber,
     clientName,
+    businessNumber,
     issueDate,
     validUntil,
     totalAmount,
@@ -61,10 +65,10 @@ function transformNotionToItem(
   const props = page.properties
 
   // null 체크와 기본값 처리
-  const description = extractPlainText(props.항목명?.title) || '항목명 없음'
-  const quantity = props.수량?.number || 0
-  const unitPrice = props.단가?.number || 0
-  const amount = props.금액?.number || quantity * unitPrice
+  const description = extractPlainText(props.item_name?.title) || '항목명 없음'
+  const quantity = props.quantity?.number || 0
+  const unitPrice = props.unit_price?.number || 0
+  const amount = props.amount?.number || quantity * unitPrice
 
   return {
     id: page.id,
@@ -76,21 +80,87 @@ function transformNotionToItem(
 }
 
 /**
- * 한글 상태를 InvoiceStatus 타입으로 매핑
- * @param koreanStatus - 한글 상태값 (대기/승인/거절)
- * @returns 영문 상태값
+ * Invoice 부분 데이터를 Notion 견적서 페이지 properties payload로 변환 (역방향)
+ * 제공된(undefined가 아닌) 필드만 payload에 포함하므로 부분 수정에 사용 가능하다.
+ * @param data - 수정할 Invoice 부분 데이터
+ * @returns notion.pages.update의 properties에 전달 가능한 객체
  */
-function mapKoreanStatus(
-  koreanStatus: string | null | undefined
-): InvoiceStatus {
-  if (!koreanStatus) {
-    return 'pending'
+export function buildInvoicePropertiesPayload(
+  data: Partial<Invoice>
+): UpdatePageParameters['properties'] {
+  const properties: Record<string, unknown> = {}
+
+  if (data.clientName !== undefined) {
+    properties.client_name = {
+      rich_text: [{ text: { content: data.clientName } }],
+    }
+  }
+  if (data.businessNumber !== undefined) {
+    properties.business_number = {
+      rich_text: [{ text: { content: data.businessNumber } }],
+    }
+  }
+  if (data.issueDate !== undefined) {
+    properties.issue_date = { date: { start: data.issueDate } }
+  }
+  if (data.validUntil !== undefined) {
+    properties.valid_until = { date: { start: data.validUntil } }
+  }
+  if (data.totalAmount !== undefined) {
+    properties.total_amount = { number: data.totalAmount }
+  }
+  if (data.status !== undefined) {
+    properties.status = { select: { name: data.status } }
   }
 
-  // 타입 안전성을 위한 체크
-  const mappedStatus =
-    KOREAN_TO_STATUS_MAP[koreanStatus as keyof typeof KOREAN_TO_STATUS_MAP]
-  return (mappedStatus as InvoiceStatus) || 'pending'
+  return properties as UpdatePageParameters['properties']
+}
+
+/**
+ * InvoiceItem 부분 데이터를 Notion 항목 페이지 properties payload로 변환 (역방향)
+ * @param item - 항목 데이터 (id 제외 부분)
+ * @param invoiceId - 연결할 견적서 페이지 ID (생성 시 relation 설정용, 선택)
+ * @returns notion 항목 페이지 properties 객체
+ */
+export function buildItemPropertiesPayload(
+  item: Partial<Omit<InvoiceItem, 'id'>>,
+  invoiceId?: string
+): UpdatePageParameters['properties'] {
+  const properties: Record<string, unknown> = {}
+
+  if (item.description !== undefined) {
+    properties.item_name = {
+      title: [{ text: { content: item.description } }],
+    }
+  }
+  if (item.quantity !== undefined) {
+    properties.quantity = { number: item.quantity }
+  }
+  if (item.unitPrice !== undefined) {
+    properties.unit_price = { number: item.unitPrice }
+  }
+  if (item.amount !== undefined) {
+    properties.amount = { number: item.amount }
+  }
+  if (invoiceId !== undefined) {
+    properties.invoices = { relation: [{ id: invoiceId }] }
+  }
+
+  return properties as UpdatePageParameters['properties']
+}
+
+/**
+ * Notion select 상태값을 InvoiceStatus 타입으로 검증/매핑
+ * Notion 옵션 값이 이미 영문(pending/approved/rejected)이므로 유효성만 검증
+ * @param statusName - Notion status select 값
+ * @returns 영문 상태값 (유효하지 않으면 'pending')
+ */
+function mapStatus(statusName: string | null | undefined): InvoiceStatus {
+  const validStatuses: InvoiceStatus[] = ['pending', 'approved', 'rejected']
+  if (statusName && validStatuses.includes(statusName as InvoiceStatus)) {
+    return statusName as InvoiceStatus
+  }
+  return 'pending'
 }
 
 /**
@@ -135,7 +205,7 @@ function calculateTotalFromItems(
   itemPages: Array<NotionPage & { properties: ItemPageProperties }>
 ): number {
   return itemPages.reduce((total, page) => {
-    const amount = page.properties.금액?.number || 0
+    const amount = page.properties.amount?.number || 0
     return total + amount
   }, 0)
 }
