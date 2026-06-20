@@ -3,7 +3,7 @@
  * 견적서 데이터 조회 및 처리 로직
  */
 
-import { revalidatePath, revalidateTag } from 'next/cache'
+import { revalidatePath, revalidateTag, unstable_cache } from 'next/cache'
 import { createCachedInvoiceFetcher, getInvoiceWithDedup } from '@/lib/cache'
 import { ERROR_MESSAGES } from '@/lib/constants'
 import { env } from '@/lib/env'
@@ -14,7 +14,12 @@ import {
   buildItemPropertiesPayload,
   transformNotionToInvoice,
 } from '@/lib/utils/notion-parser'
-import type { Invoice, InvoiceItem, InvoiceStatus } from '@/types/invoice'
+import type {
+  ClientSummary,
+  Invoice,
+  InvoiceItem,
+  InvoiceStatus,
+} from '@/types/invoice'
 import type {
   InvoicePageProperties,
   ItemPageProperties,
@@ -418,6 +423,82 @@ export async function searchInvoices(
     throw new Error('견적서 검색에 실패했습니다')
   }
 }
+
+/**
+ * 견적서 client_name을 집계해 클라이언트 요약 목록 생성 (캐시 미적용 원본)
+ * 항목(items) 조회를 생략해 N+1을 피하고 상위 속성만 읽는다.
+ */
+async function getClientsUncached(): Promise<ClientSummary[]> {
+  try {
+    const dataSourceId = await getDataSourceId()
+    const summaryMap = new Map<string, ClientSummary>()
+    let cursor: string | undefined = undefined
+
+    do {
+      const response = await notion.dataSources.query({
+        data_source_id: dataSourceId,
+        page_size: 100,
+        start_cursor: cursor || undefined,
+      })
+
+      response.results
+        .filter((page): page is NotionPage => 'properties' in page)
+        .filter(isInvoicePage)
+        .forEach(page => {
+          const props = page.properties
+          const name =
+            props.client_name?.rich_text?.map(t => t.plain_text).join('') ||
+            '미지정'
+          const businessNumber =
+            props.business_number?.rich_text?.map(t => t.plain_text).join('') ||
+            ''
+          const amount = props.total_amount?.number || 0
+          const issueDate = props.issue_date?.date?.start || ''
+
+          const existing = summaryMap.get(name)
+          if (existing) {
+            existing.invoiceCount += 1
+            existing.totalAmount += amount
+            if (businessNumber && !existing.businessNumber) {
+              existing.businessNumber = businessNumber
+            }
+            if (issueDate > existing.lastIssueDate) {
+              existing.lastIssueDate = issueDate
+            }
+          } else {
+            summaryMap.set(name, {
+              name,
+              businessNumber,
+              invoiceCount: 1,
+              totalAmount: amount,
+              lastIssueDate: issueDate,
+            })
+          }
+        })
+
+      cursor = response.has_more ? response.next_cursor || undefined : undefined
+    } while (cursor)
+
+    const clients = Array.from(summaryMap.values()).sort((a, b) =>
+      b.lastIssueDate.localeCompare(a.lastIssueDate)
+    )
+
+    logger.info('클라이언트 집계 성공', { count: clients.length })
+    return clients
+  } catch (error) {
+    const errorObj = error as Error
+    logger.error('클라이언트 집계 실패', { error: errorObj.message })
+    throw new Error('클라이언트 목록을 불러올 수 없습니다')
+  }
+}
+
+/**
+ * 클라이언트 요약 목록 조회 (60초 캐시, 'invoice' 태그로 견적서 변경 시 함께 무효화)
+ */
+export const getClients = unstable_cache(getClientsUncached, ['clients'], {
+  revalidate: 60,
+  tags: ['invoice'],
+})
 
 /**
  * 견적서 변경 후 관련 캐시 무효화

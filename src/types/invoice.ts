@@ -52,6 +52,22 @@ export interface Invoice {
 }
 
 /**
+ * 클라이언트 요약 정보 (견적서 client_name 집계 결과)
+ */
+export interface ClientSummary {
+  /** 클라이언트명 (집계 키) */
+  name: string
+  /** 사업자번호 (가장 최근 견적서 기준, 없으면 빈 문자열) */
+  businessNumber: string
+  /** 견적서 건수 */
+  invoiceCount: number
+  /** 총 견적 금액 합계 */
+  totalAmount: number
+  /** 최근 발행일 (ISO 8601) */
+  lastIssueDate: string
+}
+
+/**
  * 회사 정보 인터페이스
  * PDF 생성 시 사용되는 발행자 정보
  */
