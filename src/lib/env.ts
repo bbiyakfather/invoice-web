@@ -71,6 +71,20 @@ if (env.NODE_ENV === 'production') {
       '프로덕션 환경에서 기본 SESSION_SECRET을 사용할 수 없습니다. 새로운 시크릿 키를 생성하세요.'
     )
   }
+
+  // NEXT_PUBLIC_BASE_URL 보정:
+  // 프로덕션에서 도메인이 설정되지 않아 localhost로 남으면 공유 링크가 깨지므로
+  // Vercel 배포 URL(VERCEL_URL)로 폴백한다. 그래도 없으면 경고만 남긴다(빌드 비차단).
+  if (env.NEXT_PUBLIC_BASE_URL.includes('localhost')) {
+    if (env.VERCEL_URL) {
+      env.NEXT_PUBLIC_BASE_URL = `https://${env.VERCEL_URL}`
+    } else {
+      console.warn(
+        '[env] 프로덕션에서 NEXT_PUBLIC_BASE_URL이 설정되지 않았습니다. ' +
+          '견적서 공유 링크가 localhost로 생성됩니다. 실제 도메인을 설정하세요.'
+      )
+    }
+  }
 }
 
 export type Env = z.infer<typeof envSchema>

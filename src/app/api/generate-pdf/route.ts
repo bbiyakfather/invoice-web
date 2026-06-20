@@ -11,6 +11,14 @@ import type { Invoice } from '@/types/invoice'
 import { ERROR_MESSAGES, PDF_CONFIG } from '@/lib/constants'
 import { sanitizeFilename } from '@/lib/format'
 
+// Vercel 서버리스 설정
+// - @react-pdf/renderer는 Node 전용이므로 Edge 런타임 불가 → nodejs 고정
+// - 콜드스타트 + 한글 폰트 CDN fetch 여유를 위해 실행시간 확장
+// (참고) 폰트를 public/fonts/NotoSansKR-Regular.ttf 로컬로 전환하려면
+//        서버리스 번들 경로 접근 검증이 필요하므로 현재는 검증된 CDN 유지.
+export const runtime = 'nodejs'
+export const maxDuration = 30
+
 /**
  * POST /api/generate-pdf
  * 견적서 데이터를 받아 PDF를 생성하여 반환
